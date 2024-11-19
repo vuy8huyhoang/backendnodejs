@@ -214,6 +214,10 @@ router.get('/sp', (req, res) => {
     res.status(400).json({ thongbao: 'Vui lòng cung cấp keyword hoặc category trong truy vấn.' });
   }
 });
+router.get('/', (req, res) => {
+  res.send('Hello from Vercel and Node.js!');
+});
+
 
 
 module.exports = router;
