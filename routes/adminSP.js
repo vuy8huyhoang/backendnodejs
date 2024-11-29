@@ -12,8 +12,8 @@ router.get('/', (req, res) => {
     }
 
     let sort = ``;
-    if (req.query._sort != undefined) { //có bien _sort
-        let str = req.query._sort; //xem
+    if (req.query._sort != undefined) { 
+        let str = req.query._sort; 
         sort = `ORDER BY ${str} asc`;
     }
     let sql = `SELECT id, ten, gia, gia_km, hinh, ngay , xem,an_hien,tinh_chat,mau_sac,can_nang

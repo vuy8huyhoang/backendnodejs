@@ -1,8 +1,11 @@
 var express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+
 const secret = crypto.randomBytes(64).toString('hex');
 const JWT_SECRET = secret;
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || crypto.randomBytes(64).toString('hex'); 
@@ -17,6 +20,30 @@ router.get('/', function(req, res, next) {
   res.send(`respond with a resource ${process.env.JWT_SECRET}`);
 
 });
+
+router.get('/auth/google',
+  passport.authenticate('google', {
+    scope: ['https://www.googleapis.com/auth/plus.login', 'https://www.googleapis.com/auth/userinfo.email']
+  })
+);
+
+router.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req, res) => {
+    const payload = { email: req.user.email, ten: req.user.ten, id: req.user.id };
+    const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
+    const refreshToken = jwt.sign(payload, REFRESH_TOKEN_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRATION });
+
+    res.status(200).json({
+      message: 'Đăng nhập với Google thành công',
+      user: req.user,
+      accessToken,
+      refreshToken,
+    });
+  }
+);
+
+
 
 router.post('/login', (req, res) => {
   const { email, mat_khau } = req.body;
@@ -59,6 +86,62 @@ router.post('/login', (req, res) => {
     });
   });
 });
+
+router.post('/change-password', (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader) {
+    return res.status(401).json({ message: 'Không có token xác thực' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  // Kiểm tra tính hợp lệ của token
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
+    }
+
+    const sql = 'SELECT * FROM users WHERE id = ?';
+    db.query(sql, [user.id], (err, results) => {
+      if (err) {
+        return res.status(500).json({ error: 'Lỗi máy chủ' });
+      }
+      if (results.length === 0) {
+        return res.status(400).json({ message: 'Người dùng không tồn tại' });
+      }
+
+      const currentUser = results[0];
+
+      bcrypt.compare(currentPassword, currentUser.mat_khau, (err, isMatch) => {
+        if (err) {
+          return res.status(500).json({ error: 'Lỗi máy chủ' });
+        }
+        if (!isMatch) {
+          return res.status(400).json({ message: 'Mật khẩu cũ không chính xác' });
+        }
+
+        bcrypt.hash(newPassword, 10, (err, hashedPassword) => {
+          if (err) {
+            return res.status(500).json({ error: 'Lỗi khi mã hóa mật khẩu' });
+          }
+
+          const updatePasswordSql = 'UPDATE users SET mat_khau = ? WHERE id = ?';
+          db.query(updatePasswordSql, [hashedPassword, user.id], (err, result) => {
+            if (err) {
+              return res.status(500).json({ error: 'Lỗi khi cập nhật mật khẩu' });
+            }
+
+            res.status(200).json({ message: 'Mật khẩu đã được thay đổi thành công' });
+          });
+        });
+      });
+    });
+  });
+});
+
+
 router.get('/profile', (req, res) => {
   const authHeader = req.headers['authorization'];
 
@@ -80,7 +163,8 @@ router.get('/profile', (req, res) => {
         email: user.email,
         ten: user.ten,
         hinh: user.hinh,
-        
+        so_dien_thoai: user.so_dien_thoai,
+        ngay_sinh:user.ngay_sinh,
       },
     });
   });
@@ -166,15 +250,13 @@ router.get('/verify-email', (req, res) => {
     if (results.length === 0) {
       return res.status(400).json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
     }
-
     const user = results[0];
-
     const updateSql = 'UPDATE users SET is_verified = ?, verification_token = NULL WHERE id = ?';
     db.query(updateSql, [true, user.id], (err, result) => {
       if (err) {
         return res.status(500).json({ error: 'Lỗi khi cập nhật trạng thái xác thực' });
       }
-      res.status(200).json({ message: 'Tài khoản đã được xác thực thành công' });
+      res.status(200).json({ message: 'Tài khoản đã được xác thực thành công',status:200 });
     });
   });
 });
@@ -200,7 +282,10 @@ router.post('/resend-verification-email', (req, res) => {
     const user = results[0];
 
     if (user.is_verified) {
-      return res.status(400).json({ message: 'Tài khoản đã được xác thực' });
+      return res.status(400).json({
+        message: 'Tài khoản đã được xác thực',
+        
+       });
     }
 
     const verificationToken = crypto.randomBytes(32).toString('hex');

@@ -2,10 +2,7 @@ var express = require('express');
 var db = require('../models/database');
 var router = express.Router();
 
-router.get('/', function (req, res) {
-  res.send(`respond with a resource `);
 
-});
 router.get('/allsp', function (req, res) {
   const sql = `
     SELECT id, ten, gia, gia_km, hinh, ngay, xem 
@@ -80,27 +77,27 @@ FROM thuoc_tinh WHERE id_sp= ${id};
 
 
 `;
-  db.query(sql, function (err, arr) {
+ db.query(sql, function (err, arr) {
     if (err) {
-      res.json({ 'thongbao': `Lỗi: ${err}` });
+        res.json({ 'thongbao': `Lỗi: ${err}` });
     } else {
-      let sp = arr[0] && arr[0][0] ? arr[0][0] : null;
-      let tt = arr[1] && arr[1][0] ? arr[1][0] : null;
+        let sp = arr[0] && arr[0][0] ? arr[0][0] : null;
+        let tt = arr[1] && arr[1][0] ? arr[1][0] : null;
 
-      if (!sp) {
-        res.json({ thongbao: 'Không tìm thấy thông tin sản phẩm' });
-        return;
-      }
+        if (!sp) {
+            res.json({ thongbao: 'Không tìm thấy thông tin sản phẩm' });
+            return;
+        }
 
-      if (!tt) {
-        res.json({ thongbao: 'Không tìm thấy thông tin thuộc tính' });
-        return;
-      }
+        if (!tt) {
+            res.json({ thongbao: 'Không tìm thấy thông tin thuộc tính' });
+            return;
+        }
 
-      var obj = Object.assign({}, sp, tt);
-      res.json(obj);
+        var obj = Object.assign({}, sp, tt);
+        res.json(obj);
     }
-  });
+});
 
 });
 router.get('/splq/:id', function (req, res) {
